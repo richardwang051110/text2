@@ -1,0 +1,1638 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#111a16">
+<title>中国象棋 · 一局棋两个人</title>
+<style>
+:root {
+  --panel-h: clamp(40px, 9dvh, 62px);
+  --toolbar-h: clamp(36px, 6dvh, 48px);
+  --ink: #101915;
+  --ink-2: #17231d;
+  --paper: #efe5cd;
+  --paper-dim: rgba(239, 229, 205, .68);
+  --line: #6b3f22;
+  --wood-deep: #7a4827;
+  --red: #a9231d;
+  --black: #20242a;
+  --turn: 60;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body {
+  background: #111a16;
+  color: var(--paper);
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+}
+button {
+  font: inherit;
+  border: 0;
+  cursor: pointer;
+  color: inherit;
+  background: none;
+}
+.hidden { display: none !important; }
+
+#app {
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.02), transparent 28%),
+    linear-gradient(145deg, #18231d, #0d1512 68%, #0a100d);
+}
+
+.screen { width: 100%; height: 100%; min-width: 0; min-height: 0; }
+
+/* Menu */
+.menu-screen {
+  display: grid;
+  place-items: center;
+  position: relative;
+  overflow: hidden;
+  padding: calc(18px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left));
+}
+.menu-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .15;
+  pointer-events: none;
+  background-image:
+    linear-gradient(90deg, transparent 0 45%, rgba(255,255,255,.08) 46% 47%, transparent 48%),
+    linear-gradient(0deg, transparent 0 95%, rgba(255,255,255,.05) 96%);
+  background-size: 7px 7px;
+}
+.menu-inner {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+  animation: rise .45s ease both;
+}
+.menu-seal {
+  color: #d7c096;
+  font-family: "KaiTi", "STKaiti", "Kaiti SC", "Songti SC", serif;
+  letter-spacing: .45em;
+  font-size: 13px;
+  text-indent: .45em;
+  border: 1px solid rgba(223,199,151,.45);
+  border-radius: 5px;
+  padding: 7px 12px;
+}
+.menu-screen h1 {
+  margin: 4px 0 0;
+  font-family: "KaiTi", "STKaiti", "Kaiti SC", "Songti SC", serif;
+  font-size: clamp(48px, 15vw, 88px);
+  font-weight: 600;
+  color: #f2e5c4;
+  text-shadow: 0 2px 0 rgba(0,0,0,.25);
+}
+.menu-sub {
+  margin: 0 0 22px;
+  color: var(--paper-dim);
+  letter-spacing: .18em;
+  font-size: clamp(13px, 3.4vw, 18px);
+  text-indent: .18em;
+}
+.menu-actions {
+  display: grid;
+  gap: 12px;
+  min-width: min(260px, 74vw);
+}
+.primary, .ghost, .tool-button, .sheet-button {
+  min-height: 44px;
+  border-radius: 8px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  transition: transform .12s ease, background .12s ease, border-color .12s ease;
+}
+.primary {
+  background: #a92922;
+  box-shadow: 0 5px 0 #6d1714, 0 8px 18px rgba(0,0,0,.28);
+  color: #fff4df;
+  border: 1px solid #c54a3f;
+  font-size: 17px;
+}
+.primary:active { transform: translateY(3px); box-shadow: 0 2px 0 #6d1714; }
+.ghost {
+  border: 1px solid rgba(220,210,180,.32);
+  color: var(--paper);
+  background: rgba(255,255,255,.04);
+}
+.ghost:active, .tool-button:active { transform: translateY(1px); background: rgba(255,255,255,.09); }
+.mini-piece {
+  position: absolute;
+  width: 17vmin;
+  height: 17vmin;
+  max-width: 120px;
+  max-height: 120px;
+  opacity: .1;
+  pointer-events: none;
+  filter: blur(1px);
+}
+.mini-pieces {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.mini-piece.p-one { left: -4vw; top: 12%; }
+.mini-piece.p-two { right: -3vw; bottom: 8%; width: 21vmin; height: 21vmin; }
+
+/* Game screen layout */
+.game-screen {
+  display: grid;
+  grid-template-areas: "black" "board" "red" "toolbar";
+  grid-template-rows: var(--panel-h) minmax(0, 1fr) var(--panel-h) var(--toolbar-h);
+  background: transparent;
+}
+.game-screen.flipped {
+  grid-template-areas: "red" "board" "black" "toolbar";
+}
+#blackPanel { grid-area: black; }
+#redPanel { grid-area: red; }
+#boardStage { grid-area: board; }
+#toolbar { grid-area: toolbar; }
+
+.player-panel {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 max(10px, env(safe-area-inset-left)) 0 max(10px, env(safe-area-inset-right));
+  border-top: 1px solid rgba(255,255,255,.04);
+  border-bottom: 1px solid rgba(0,0,0,.3);
+  background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.015));
+}
+.player-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  opacity: 0;
+  transition: opacity .18s ease;
+  background: #d0a95a;
+}
+.player-panel.active::before { opacity: 1; }
+.player-panel .side-badge {
+  flex: 0 0 auto;
+  width: clamp(25px, 6.5dvh, 44px);
+  height: clamp(25px, 6.5dvh, 44px);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: "KaiTi", "STKaiti", serif;
+  font-size: clamp(13px, 3.2dvh, 24px);
+  background: #eadfbd;
+  border: 1px solid #b29052;
+  box-shadow: inset 0 1px 0 #fff, 0 1px 3px rgba(0,0,0,.45);
+  color: var(--red);
+}
+#blackPanel .side-badge { color: var(--black); }
+.side-copy {
+  min-width: 0;
+  display: grid;
+  line-height: 1.12;
+}
+.side-name { font-size: clamp(13px, 4.2dvh, 21px); font-weight: 700; }
+.side-state {
+  color: var(--paper-dim);
+  font-size: clamp(10px, 2.6dvh, 14px);
+  white-space: nowrap;
+}
+.player-panel.active .side-state { color: #e8d29b; }
+.clock {
+  margin-left: auto;
+  min-width: 3.1ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: clamp(18px, 6.2dvh, 38px);
+  line-height: 1;
+  color: #c7bd9e;
+}
+.player-panel.active .clock { color: #f7ead0; }
+.clock.low { color: #f2b65d; }
+.clock.critical { color: #ff6655; animation: pulse .6s ease-in-out infinite; }
+
+/* Board */
+#boardStage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(0px, .6dvh, 5px) 4px;
+  position: relative;
+}
+#board {
+  position: relative;
+  --cell: 56px;
+  --pad: 28px;
+  --piece: 48px;
+  flex: 0 0 auto;
+  aspect-ratio: 9 / 10;
+  touch-action: none;
+  filter: drop-shadow(0 8px 12px rgba(0,0,0,.5));
+}
+.board-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  display: block;
+  border-radius: 14px;
+}
+.board-layer {
+  position: absolute;
+  inset: 0;
+}
+.mark-layer { z-index: 3; pointer-events: none; }
+.piece-layer { z-index: 4; pointer-events: none; }
+.drag-layer { z-index: 6; pointer-events: none; }
+
+.spot {
+  position: absolute;
+  left: calc(var(--pad) + var(--cell) * var(--fx));
+  top: calc(var(--pad) + var(--cell) * var(--fy));
+  transform: translate(-50%, -50%);
+}
+.spot-ring {
+  width: calc(var(--piece) * 1.08);
+  height: calc(var(--piece) * 1.08);
+  border-radius: 50%;
+  border: 2px solid rgba(224, 166, 70, .9);
+  box-shadow: 0 0 0 2px rgba(79, 43, 18, .25), 0 0 10px rgba(255, 208, 119, .22);
+  background: rgba(242, 193, 101, .12);
+}
+.hint-dot {
+  width: calc(var(--cell) * .28);
+  height: calc(var(--cell) * .28);
+  min-width: 7px;
+  min-height: 7px;
+  border-radius: 50%;
+  background: rgba(42, 106, 79, .78);
+  border: 1px solid rgba(238, 224, 190, .22);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.12);
+}
+.hint-capture {
+  width: calc(var(--piece) * .88);
+  height: calc(var(--piece) * .88);
+  border-radius: 50%;
+  border: 2px dashed rgba(35, 111, 75, .9);
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(240,230,205,.08);
+}
+.piece {
+  position: absolute;
+  left: calc(var(--pad) + var(--cell) * var(--fx));
+  top: calc(var(--pad) + var(--cell) * var(--fy));
+  width: var(--piece);
+  height: var(--piece);
+  transform: translate(-50%, -50%);
+  transform-origin: 50% 50%;
+  pointer-events: none;
+  will-change: transform;
+}
+.piece svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 1px 1px rgba(30,14,5,.45)); }
+.piece.dropping { animation: pieceDrop .16s ease-out both; }
+.piece.dropping svg { filter: drop-shadow(0 2px 1px rgba(30,14,5,.4)); }
+.piece.shake { animation: illegalShake .26s ease-in-out both; }
+.piece.moved {
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(243, 194, 85, .92), 0 0 12px rgba(255, 205, 100, .38);
+}
+.piece.moved svg {
+  filter: drop-shadow(0 1px 1px rgba(30,14,5,.45)) drop-shadow(0 0 5px rgba(255, 207, 100, .45));
+}
+
+@keyframes pieceDrop {
+  0% { transform: translate(-50%, -50%) scale(1.24); opacity: .7; }
+  60% { transform: translate(-50%, -50%) scale(.96); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes illegalShake {
+  0%, 100% { transform: translate(-50%, -50%); }
+  20% { transform: translate(calc(-50% - 3px), -50%); }
+  40% { transform: translate(calc(-50% + 3px), -50%); }
+  60% { transform: translate(calc(-50% - 2px), -50%); }
+  80% { transform: translate(calc(-50% + 2px), -50%); }
+}
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes pulse { 50% { opacity: .55; } }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+.drag-ghost {
+  position: absolute;
+  width: var(--piece);
+  height: var(--piece);
+  transform: translate(-50%, -50%);
+  opacity: .82;
+  pointer-events: none;
+}
+.drag-ghost svg { width: 100%; height: 100%; display: block; }
+
+.move-toast {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  z-index: 12;
+  transform: translateX(-50%);
+  max-width: 84%;
+  padding: 6px 12px;
+  border-radius: 7px;
+  background: rgba(19, 26, 22, .88);
+  border: 1px solid rgba(235, 219, 178, .22);
+  color: #f0e3c2;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: toastIn .18s ease both;
+  box-shadow: 0 6px 16px rgba(0,0,0,.25);
+}
+.move-toast.warn { color: #ffd7a3; border-color: rgba(255,188,99,.4); }
+.move-toast.timeout { color: #ffb0a3; border-color: rgba(255,110,90,.45); }
+
+/* Toolbar */
+#toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 2vw, 16px);
+  padding: 0 max(6px, env(safe-area-inset-left)) 0 max(6px, env(safe-area-inset-right));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: rgba(7, 12, 9, .62);
+  border-top: 1px solid rgba(255,255,255,.05);
+}
+.tool-button {
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 clamp(7px, 1.8vw, 14px);
+  border-radius: 7px;
+  font-size: clamp(11px, 3.2dvh, 14px);
+  letter-spacing: .05em;
+  color: #d9cfb5;
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.07);
+  white-space: nowrap;
+}
+.tool-button.on { color: #f5e3ba; border-color: rgba(215,168,91,.4); background: rgba(201,143,54,.13); }
+
+/* Overlays */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 8, 6, .68);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  padding: 24px;
+}
+.result-card, .sheet-card {
+  width: min(360px, 90vw);
+  border-radius: 10px;
+  padding: 24px 22px 20px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.05), transparent 26%),
+    #18211c;
+  border: 1px solid rgba(235,220,180,.2);
+  box-shadow: 0 20px 55px rgba(0,0,0,.5);
+  text-align: center;
+}
+.result-mark {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: "KaiTi", "STKaiti", serif;
+  font-size: 28px;
+  border: 2px solid;
+}
+.result-mark.red { color: #d7443a; border-color: rgba(222,78,68,.7); background: rgba(160,24,19,.12); }
+.result-mark.black { color: #e7e4dd; border-color: rgba(235,230,220,.5); background: rgba(0,0,0,.25); }
+.result-mark.draw { color: #d6c390; border-color: rgba(220,192,120,.55); background: rgba(171,137,72,.13); }
+.result-card h2 { margin: 0; font-size: 26px; color: #f3e6c6; }
+.result-reason { margin: 7px 0 20px; color: var(--paper-dim); font-size: 14px; }
+.sheet-card { text-align: left; }
+.sheet-card h2 { margin: 0 0 16px; font-size: 20px; color: #f3e6c6; text-align: center; }
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+  font-size: 15px;
+}
+.switch {
+  position: relative;
+  width: 58px;
+  height: 30px;
+  border-radius: 15px;
+  background: #303b35;
+  border: 1px solid rgba(255,255,255,.1);
+  transition: background .15s ease;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #cdc2a6;
+  transition: transform .15s ease, background .15s ease;
+}
+.switch.on { background: #4c7138; }
+.switch.on::after { transform: translateX(28px); background: #f1e4c2; }
+.sheet-actions { display: grid; gap: 10px; margin-top: 18px; }
+.sheet-button {
+  min-height: 42px;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.12);
+  font-size: 15px;
+}
+.sheet-button.primary { border: 0; }
+
+@media (min-width: 700px) and (orientation: landscape) {
+  :root {
+    --panel-h: clamp(54px, 10dvh, 74px);
+    --toolbar-h: 46px;
+  }
+}
+
+@media (max-height: 480px) and (orientation: landscape) {
+  :root {
+    --panel-h: 32px;
+    --toolbar-h: 33px;
+  }
+  #gameScreen {
+    grid-template-areas: "black" "board" "red";
+    grid-template-rows: var(--panel-h) minmax(0, 1fr) var(--panel-h);
+    position: relative;
+  }
+  #toolbar {
+    position: absolute;
+    right: max(5px, env(safe-area-inset-right));
+    top: 50%;
+    transform: translateY(-50%);
+    display: grid;
+    grid-template-columns: repeat(2, 52px);
+    gap: 5px;
+    padding: 0;
+    width: auto;
+    background: transparent;
+    border: 0;
+  }
+  .player-panel { gap: 6px; padding: 0 8px; }
+  .side-copy { line-height: 1; }
+  .side-state { font-size: 9px; }
+  .side-name { font-size: 12px; }
+  .clock { font-size: 17px; }
+  .tool-button { min-height: 27px; min-width: 52px; width: 100%; padding: 0 2px; font-size: 10px; letter-spacing: 0; }
+  .move-toast { font-size: 11px; top: 2px; padding: 4px 8px; }
+}
+
+@media (max-width: 360px) {
+  .tool-button { padding: 0 6px; }
+  .side-name { font-size: 12px; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="woodGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d5a86d"/>
+      <stop offset=".42" stop-color="#c18f52"/>
+      <stop offset="1" stop-color="#a56f3a"/>
+    </linearGradient>
+    <linearGradient id="woodSide" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9a5d30"/>
+      <stop offset="1" stop-color="#6f3f22"/>
+    </linearGradient>
+    <linearGradient id="pieceBase" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fdf2d5"/>
+      <stop offset=".35" stop-color="#f6e6bd"/>
+      <stop offset="1" stop-color="#dfc08b"/>
+    </linearGradient>
+    <radialGradient id="pieceShine" cx=".32" cy=".24" r=".72">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".42"/>
+      <stop offset=".55" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="textGlow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".08"/>
+      <stop offset=".5" stop-color="#000000" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".16"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<main id="app">
+  <section id="menuScreen" class="screen menu-screen" aria-label="开始界面">
+    <div class="menu-inner">
+      <div class="menu-seal">楚河 · 汉界</div>
+      <h1>中国象棋</h1>
+      <p class="menu-sub">一局棋 · 两个人 · 一台设备</p>
+      <div class="menu-actions">
+        <button id="btnStart" class="primary">开始游戏</button>
+        <button id="btnMenuSettings" class="ghost">设置</button>
+      </div>
+    </div>
+    <div id="menuPieces" class="mini-pieces" aria-hidden="true"></div>
+  </section>
+
+  <section id="gameScreen" class="screen game-screen hidden" aria-label="中国象棋棋盘">
+    <header id="blackPanel" class="player-panel">
+      <div class="side-badge" id="blackBadge">将</div>
+      <div class="side-copy">
+        <div class="side-name">黑方</div>
+        <div class="side-state" id="blackState">等待</div>
+      </div>
+      <div class="clock" id="blackClock">60</div>
+    </header>
+
+    <div id="boardStage">
+      <div id="board" role="application" aria-label="棋盘，点击棋子后点击目标位置走棋">
+        <svg id="boardSvg" class="board-art" viewBox="0 0 900 1000" aria-hidden="true"></svg>
+        <div id="markLayer" class="board-layer mark-layer"></div>
+        <div id="pieceLayer" class="board-layer piece-layer"></div>
+        <div id="dragLayer" class="board-layer drag-layer"></div>
+      </div>
+    </div>
+
+    <footer id="redPanel" class="player-panel">
+      <div class="side-badge" id="redBadge">帅</div>
+      <div class="side-copy">
+        <div class="side-name">红方</div>
+        <div class="side-state" id="redState">等待</div>
+      </div>
+      <div class="clock" id="redClock">60</div>
+    </footer>
+
+    <nav id="toolbar" aria-label="游戏操作">
+      <button id="btnNew" class="tool-button">新的一局</button>
+      <button id="btnFlip" class="tool-button">翻面</button>
+      <button id="btnSettings" class="tool-button">设置</button>
+      <button id="btnSound" class="tool-button" aria-pressed="true">声音：开</button>
+    </nav>
+  </section>
+</main>
+
+<div id="resultOverlay" class="overlay hidden" aria-hidden="true">
+  <div class="result-card" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+    <div class="result-mark" id="resultMark">胜</div>
+    <h2 id="resultTitle">红方胜</h2>
+    <p class="result-reason" id="resultReason">将死</p>
+    <div class="sheet-actions">
+      <button id="btnAgain" class="primary">再来一局</button>
+      <button id="btnCloseResult" class="sheet-button">查看棋盘</button>
+    </div>
+  </div>
+</div>
+
+<div id="settingsOverlay" class="overlay hidden" aria-hidden="true">
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <h2 id="settingsTitle">设置</h2>
+    <div class="setting-row">
+      <span>声音</span>
+      <button id="settingSound" class="switch" aria-pressed="true" role="switch"></button>
+    </div>
+    <div class="setting-row">
+      <span>合法着法提示</span>
+      <button id="settingHints" class="switch" aria-pressed="true" role="switch"></button>
+    </div>
+    <div class="sheet-actions">
+      <button id="btnSettingsClose" class="sheet-button">完成</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ============================== CONFIG ============================== */
+const CONFIG = Object.freeze({
+  BOARD_FILES: 9,
+  BOARD_RANKS: 10,
+  TURN_TIME_MS: 60 * 1000,
+  ANIMATION_DURATION_MS: 170,
+  SHOW_MOVE_HINT: true,
+  SOUND_ENABLED: true,
+  THEME: "rosewood",
+  MAX_NO_PROGRESS_PLIES: 120,
+  THREE_FOLD_REPETITION: true,
+  PIECE_LABELS: {
+    red: { k: "帅", a: "仕", e: "相", h: "傌", r: "俥", c: "炮", p: "兵" },
+    black: { k: "将", a: "士", e: "象", h: "馬", r: "車", c: "砲", p: "卒" }
+  },
+  PALACE_X: [3, 4, 5],
+  PALACE_Y: { red: [7, 8, 9], black: [0, 1, 2] },
+  CROSS_LINE: { red: 4, black: 5 },
+  TONE: {
+    move: { freq: 190, endFreq: 118, duration: .085, type: "triangle", gain: .18 },
+    capture: { freq: 142, endFreq: 76, duration: .13, type: "sine", gain: .2 },
+    check: { freq: 620, endFreq: 620, duration: .07, type: "square", gain: .05 },
+    win: { freq: 520, endFreq: 784, duration: .28, type: "triangle", gain: .12 },
+    timeout: { freq: 230, endFreq: 150, duration: .22, type: "sawtooth", gain: .08 }
+  }
+});
+
+const INITIAL_FEN = "rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR";
+const SIDES = ["red", "black"];
+const SIDE_NAME = { red: "红方", black: "黑方" };
+
+/* ====================== MOVE ENGINE / RULES ========================= */
+const Rules = (function () {
+  const X = { inside(x, y) { return x >= 0 && x < 9 && y >= 0 && y < 10; } };
+  const DIRS = [
+    [1, 0], [-1, 0], [0, 1], [0, -1],
+    [1, 1], [1, -1], [-1, 1], [-1, -1]
+  ];
+
+  function emptyBoard() {
+    return Array.from({ length: 10 }, () => Array(9).fill(null));
+  }
+
+  function pieceAt(board, x, y) { return X.inside(x, y) ? board[y][x] : null; }
+  function inPalace(x, y, side) {
+    return CONFIG.PALACE_X.includes(x) && CONFIG.PALACE_Y[side].includes(y);
+  }
+  function onOwnHalf(y, side) {
+    return side === "red" ? y >= 5 : y <= 4;
+  }
+  function crossedRiver(y, side) {
+    return side === "red" ? y <= CONFIG.CROSS_LINE.red : y >= CONFIG.CROSS_LINE.black;
+  }
+  function findKing(board, side) {
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 9; x++) {
+        const p = board[y][x];
+        if (p && p.side === side && p.type === "k") return { x, y };
+      }
+    }
+    return null;
+  }
+  function hasFlyingGeneral(board, side) {
+    const mine = findKing(board, side);
+    const other = findKing(board, otherSide(side));
+    if (!mine || !other || mine.x !== other.x) return false;
+    const yA = Math.min(mine.y, other.y);
+    const yB = Math.max(mine.y, other.y);
+    for (let y = yA + 1; y < yB; y++) if (board[y][mine.x]) return false;
+    return true;
+  }
+
+  function rawMoves(board, from) {
+    const p = pieceAt(board, from.x, from.y);
+    if (!p) return [];
+    const out = [];
+    const canGo = (x, y) => X.inside(x, y) && !(board[y][x] && board[y][x].side === p.side);
+    const add = (x, y) => { if (canGo(x, y)) out.push({ x, y }); };
+
+    if (p.type === "k") {
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = from.x + dx, ny = from.y + dy;
+        if (inPalace(nx, ny, p.side)) add(nx, ny);
+      }
+    } else if (p.type === "a") {
+      for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const nx = from.x + dx, ny = from.y + dy;
+        if (inPalace(nx, ny, p.side)) add(nx, ny);
+      }
+    } else if (p.type === "e") {
+      for (const [dx, dy] of [[2, 2], [2, -2], [-2, 2], [-2, -2]]) {
+        const nx = from.x + dx, ny = from.y + dy;
+        if (!X.inside(nx, ny)) continue;
+        if (!onOwnHalf(ny, p.side)) continue;
+        const ex = from.x + dx / 2, ey = from.y + dy / 2;
+        if (!pieceAt(board, ex, ey)) add(nx, ny);
+      }
+    } else if (p.type === "h") {
+      const legs = [
+        [[2, 1], [1, 0]], [[-2, 1], [-1, 0]], [[2, -1], [1, 0]], [[-2, -1], [-1, 0]],
+        [[1, 2], [0, 1]], [[1, -2], [0, -1]], [[-1, 2], [0, 1]], [[-1, -2], [0, -1]]
+      ];
+      for (const [[dx, dy], [lx, ly]] of legs) {
+        if (pieceAt(board, from.x + lx, from.y + ly)) continue;
+        add(from.x + dx, from.y + dy);
+      }
+    } else if (p.type === "r") {
+      for (const [dx, dy] of DIRS.slice(0, 4)) {
+        let nx = from.x + dx, ny = from.y + dy;
+        while (X.inside(nx, ny)) {
+          const target = board[ny][nx];
+          if (!target) {
+            out.push({ x: nx, y: ny });
+          } else {
+            if (target.side !== p.side) out.push({ x: nx, y: ny });
+            break;
+          }
+          nx += dx; ny += dy;
+        }
+      }
+    } else if (p.type === "c") {
+      for (const [dx, dy] of DIRS.slice(0, 4)) {
+        let nx = from.x + dx, ny = from.y + dy;
+        let screen = false;
+        while (X.inside(nx, ny)) {
+          const target = board[ny][nx];
+          if (!target) {
+            if (!screen) out.push({ x: nx, y: ny });
+          } else if (!screen) {
+            screen = true;
+          } else {
+            if (target.side !== p.side) out.push({ x: nx, y: ny });
+            break;
+          }
+          nx += dx; ny += dy;
+        }
+      }
+    } else if (p.type === "p") {
+      const forward = p.side === "red" ? -1 : 1;
+      add(from.x, from.y + forward);
+      if (crossedRiver(from.y, p.side)) {
+        add(from.x - 1, from.y);
+        add(from.x + 1, from.y);
+      }
+    }
+    return out;
+  }
+
+  function otherSide(side) { return side === "red" ? "black" : "red"; }
+
+  function isInCheck(board, side) {
+    const king = findKing(board, side);
+    if (!king) return false;
+    if (hasFlyingGeneral(board, side)) return true;
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 9; x++) {
+        const p = board[y][x];
+        if (!p || p.side === side) continue;
+        if (p.type === "k") {
+          /* King attacks only through an open file in Xiangqi. */
+          if (x === king.x) {
+            let blocked = false;
+            const yA = Math.min(y, king.y), yB = Math.max(y, king.y);
+            for (let yy = yA + 1; yy < yB; yy++) {
+              if (board[yy][x]) { blocked = true; break; }
+            }
+            if (!blocked) return true;
+          }
+          continue;
+        }
+        const targets = rawMoves(board, { x, y });
+        if (targets.some(t => t.x === king.x && t.y === king.y)) return true;
+      }
+    }
+    return false;
+  }
+
+  function applyMove(board, from, to) {
+    const next = board.map(row => row.slice());
+    next[to.y][to.x] = next[from.y][from.x];
+    next[from.y][from.x] = null;
+    return next;
+  }
+
+  function isLegalMove(board, side, from, to) {
+    const p = pieceAt(board, from.x, from.y);
+    if (!p || p.side !== side) return false;
+    if (!X.inside(to.x, to.y)) return false;
+    const target = pieceAt(board, to.x, to.y);
+    if (target && target.side === side) return false;
+    if (!rawMoves(board, from).some(t => t.x === to.x && t.y === to.y)) return false;
+    const next = applyMove(board, from, to);
+    return !isInCheck(next, side);
+  }
+
+  function getLegalMoves(board, side) {
+    const moves = [];
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 9; x++) {
+        const p = board[y][x];
+        if (!p || p.side !== side) continue;
+        for (const to of rawMoves(board, { x, y })) {
+          const from = { x, y };
+          if (isLegalMove(board, side, from, to)) {
+            moves.push({ from: { x, y }, to, piece: p, captured: pieceAt(board, to.x, to.y) });
+          }
+        }
+      }
+    }
+    return moves;
+  }
+
+  function parseFen(fen) {
+    const board = emptyBoard();
+    const rows = fen.trim().split("/");
+    if (rows.length !== 10) throw new Error("FEN must have 10 rows");
+    rows.forEach((row, y) => {
+      let x = 0;
+      for (const ch of row) {
+        if (/\d/.test(ch)) { x += Number(ch); continue; }
+        const upper = ch === ch.toUpperCase();
+        const lower = ch.toLowerCase();
+        const type = { k: "k", a: "a", b: "e", n: "h", r: "r", c: "c", p: "p" }[lower];
+        if (!type) throw new Error("Unknown FEN char: " + ch);
+        board[y][x] = { type, side: upper ? "red" : "black" };
+        x++;
+      }
+      if (x !== 9) throw new Error("Bad FEN row: " + row);
+    });
+    return board;
+  }
+
+  function toFen(board) {
+    const pieces = { red: { k: "K", a: "A", e: "B", h: "N", r: "R", c: "C", p: "P" }, black: { k: "k", a: "a", e: "b", h: "n", r: "r", c: "c", p: "p" } };
+    return board.map(row => {
+      let line = "";
+      let empty = 0;
+      for (const p of row) {
+        if (!p) { empty++; continue; }
+        if (empty) { line += empty; empty = 0; }
+        line += pieces[p.side][p.type];
+      }
+      return line + (empty || "");
+    }).join("/");
+  }
+
+  return {
+    emptyBoard, pieceAt, findKing, isInCheck, rawMoves, applyMove,
+    isLegalMove, getLegalMoves, parseFen, toFen, otherSide,
+    inPalace, onOwnHalf, crossedRiver
+  };
+})();
+
+/* ========================== AUDIO ENGINE ============================ */
+const AudioEngine = (function () {
+  let ctx = null;
+  let enabled = CONFIG.SOUND_ENABLED;
+
+  function ensure() {
+    if (ctx) return;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) ctx = new AC();
+    } catch (err) { /* audio unsupported */ }
+  }
+
+  function tone(t) {
+    if (!enabled || !ctx) return;
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = t.type || "sine";
+    osc.frequency.setValueAtTime(t.freq, now);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(30, t.endFreq), now + t.duration);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(t.gain, now + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + t.duration);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + t.duration + .03);
+  }
+
+  function play(kind) {
+    if (!enabled) return;
+    ensure();
+    if (!ctx) return;
+    const t = CONFIG.TONE[kind];
+    if (t) tone(t);
+    if (kind === "win") {
+      window.setTimeout(() => tone(CONFIG.TONE.win), 110);
+    }
+  }
+
+  function unlock() {
+    ensure();
+    if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+  }
+
+  return {
+    get enabled() { return enabled; },
+    setEnabled(v) { enabled = !!v; },
+    unlock, play
+  };
+})();
+
+/* ========================= GAME CONTROLLER ========================== */
+const STATUS = {
+  READY: "READY",
+  PLAYING_RED: "PLAYING_RED",
+  PLAYING_BLACK: "PLAYING_BLACK",
+  CHECK_RED: "CHECK_RED",
+  CHECK_BLACK: "CHECK_BLACK",
+  CHECKMATE: "CHECKMATE",
+  STALEMATE: "STALEMATE",
+  DRAW: "DRAW"
+};
+
+class XiangqiGame {
+  constructor() {
+    this.history = [];
+    this.positionCounts = new Map();
+    this.noProgressPlies = 0;
+    this.reset();
+  }
+
+  reset() {
+    this.board = Rules.parseFen(INITIAL_FEN);
+    this.status = STATUS.READY;
+    this.winner = null;
+    this.resultKind = null;
+    this.resultText = "";
+    this.moveCount = 0;
+    this.noProgressPlies = 0;
+    this.timeoutCount = { red: 0, black: 0 };
+    this.lastMove = null;
+    this.deadline = 0;
+    this.history.length = 0;
+    this.positionCounts = new Map();
+    this.recordPosition("red");
+  }
+
+  sideToMove() {
+    return this.status === STATUS.PLAYING_BLACK || this.status === STATUS.CHECK_BLACK ? "black" : "red";
+  }
+
+  isPlaying() {
+    return this.status === STATUS.PLAYING_RED || this.status === STATUS.PLAYING_BLACK ||
+      this.status === STATUS.CHECK_RED || this.status === STATUS.CHECK_BLACK;
+  }
+
+  inCheckNow() {
+    return this.isPlaying() && Rules.isInCheck(this.board, this.sideToMove());
+  }
+
+  start() {
+    this.reset();
+    this.status = STATUS.PLAYING_RED;
+    this.deadline = performance.now() + CONFIG.TURN_TIME_MS;
+  }
+
+  beginTurn(side) {
+    const checked = Rules.isInCheck(this.board, side);
+    this.status = checked ? (side === "red" ? STATUS.CHECK_RED : STATUS.CHECK_BLACK) : (side === "red" ? STATUS.PLAYING_RED : STATUS.PLAYING_BLACK);
+    this.deadline = performance.now() + CONFIG.TURN_TIME_MS;
+  }
+
+  recordPosition(side) {
+    const key = side + " " + Rules.toFen(this.board);
+    this.positionCounts.set(key, (this.positionCounts.get(key) || 0) + 1);
+  }
+
+  applyMove(from, to) {
+    if (!this.isPlaying()) return null;
+    const side = this.sideToMove();
+    const p = Rules.pieceAt(this.board, from.x, from.y);
+    if (!p || p.side !== side) return null;
+    if (!Rules.isLegalMove(this.board, side, from, to)) return null;
+
+    const captured = Rules.pieceAt(this.board, to.x, to.y);
+    this.board = Rules.applyMove(this.board, from, to);
+    this.moveCount++;
+    this.lastMove = {
+      from: { ...from }, to: { ...to }, side,
+      pieceType: p.type, captured: !!captured
+    };
+
+    if (captured || p.type === "p") this.noProgressPlies = 0;
+    else this.noProgressPlies++;
+
+    const next = Rules.otherSide(side);
+    this.recordPosition(next);
+    const key = next + " " + Rules.toFen(this.board);
+
+    if (CONFIG.THREE_FOLD_REPETITION && this.positionCounts.get(key) >= 3) {
+      this.status = STATUS.DRAW;
+      this.resultText = "重复局面三次，和棋";
+      return { kind: "draw", reason: "重复局面" };
+    }
+    if (this.noProgressPlies >= CONFIG.MAX_NO_PROGRESS_PLIES) {
+      this.status = STATUS.DRAW;
+      this.resultText = "六十回合未吃子也未进兵，和棋";
+      return { kind: "draw", reason: "自然限着" };
+    }
+
+    const legal = Rules.getLegalMoves(this.board, next).length;
+    if (legal === 0) {
+      const checked = Rules.isInCheck(this.board, next);
+      this.winner = side;
+      this.status = checked ? STATUS.CHECKMATE : STATUS.STALEMATE;
+      this.resultText = checked ? (SIDE_NAME[side] + "胜，将死") : (SIDE_NAME[side] + "胜，困毙");
+      return { kind: checked ? "checkmate" : "stalemate", winner: side };
+    }
+
+    this.beginTurn(next);
+    return { kind: "move" };
+  }
+
+  timeoutSwitch() {
+    if (!this.isPlaying()) return;
+    const timedOut = this.sideToMove();
+    this.timeoutCount[timedOut]++;
+    this.beginTurn(Rules.otherSide(timedOut));
+  }
+}
+
+/* ============================ UI STATE ============================== */
+const $ = id => document.getElementById(id);
+const els = {
+  menuScreen: $("menuScreen"), gameScreen: $("gameScreen"),
+  board: $("board"), boardSvg: $("boardSvg"),
+  pieceLayer: $("pieceLayer"), markLayer: $("markLayer"), dragLayer: $("dragLayer"),
+  blackPanel: $("blackPanel"), redPanel: $("redPanel"),
+  blackState: $("blackState"), redState: $("redState"),
+  blackClock: $("blackClock"), redClock: $("redClock"),
+  blackBadge: $("blackBadge"), redBadge: $("redBadge"),
+  toolbar: $("toolbar"),
+  btnStart: $("btnStart"), btnMenuSettings: $("btnMenuSettings"),
+  btnNew: $("btnNew"), btnFlip: $("btnFlip"), btnSettings: $("btnSettings"), btnSound: $("btnSound"),
+  btnAgain: $("btnAgain"), btnCloseResult: $("btnCloseResult"),
+  resultOverlay: $("resultOverlay"), resultMark: $("resultMark"),
+  resultTitle: $("resultTitle"), resultReason: $("resultReason"),
+  settingsOverlay: $("settingsOverlay"), settingSound: $("settingSound"), settingHints: $("settingHints"),
+  btnSettingsClose: $("btnSettingsClose"), menuPieces: $("menuPieces")
+};
+
+const game = new XiangqiGame();
+const ui = {
+  screen: "menu",
+  selected: null,
+  flipped: false,
+  sound: true,
+  hints: true,
+  timerId: 0,
+  toastTimer: 0,
+  pointer: { active: false, downX: 0, downY: 0, moved: false, dragShown: false, pointerId: -1 }
+};
+
+/* ============================ BOARD ART ============================= */
+function buildBoardSvg() {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = els.boardSvg;
+  svg.innerHTML = "";
+  const addTo = (parent, name, attrs) => {
+    const el = document.createElementNS(NS, name);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    parent.appendChild(el);
+    return el;
+  };
+  const add = (name, attrs) => addTo(svg, name, attrs);
+
+  add("rect", { x: 6, y: 6, width: 888, height: 988, rx: 20, fill: "url(#woodSide)", opacity: .7 });
+  add("rect", { x: 16, y: 16, width: 868, height: 968, rx: 15, fill: "url(#woodGrad)" });
+
+  const frame = add("rect", { x: 34, y: 34, width: 832, height: 932, rx: 10, fill: "none", stroke: "#623820", "stroke-width": 7 });
+  frame.setAttribute("filter", "drop-shadow(0 1px 0 rgba(255,220,170,.24))");
+
+  const grid = add("g", { fill: "none", stroke: "#63391f", "stroke-width": 1.6, "stroke-linecap": "round", opacity: .88 });
+  const L = 50, R = 850, T = 50, B = 950;
+
+  for (let i = 0; i <= 9; i++) {
+    const y = T + i * 100;
+    addTo(grid, "line", { x1: L, y1: y, x2: R, y2: y });
+  }
+  for (let i = 0; i < 9; i++) {
+    const x = L + i * 100;
+    if (i === 0 || i === 8) {
+      addTo(grid, "line", { x1: x, y1: T, x2: x, y2: B });
+    } else {
+      addTo(grid, "line", { x1: x, y1: T, x2: x, y2: T + 400 });
+      addTo(grid, "line", { x1: x, y1: B - 400, x2: x, y2: B });
+    }
+  }
+
+  addTo(grid, "line", { x1: 350, y1: 50, x2: 550, y2: 250 });
+  addTo(grid, "line", { x1: 550, y1: 50, x2: 350, y2: 250 });
+  addTo(grid, "line", { x1: 350, y1: 750, x2: 550, y2: 950 });
+  addTo(grid, "line", { x1: 550, y1: 750, x2: 350, y2: 950 });
+
+  const river = add("g", {
+    fill: "#74441f", "font-family": "KaiTi, STKaiti, Kaiti SC, Songti SC, serif",
+    "font-size": 48, "text-anchor": "middle", opacity: .52
+  });
+  const riverText1 = add("text", { x: 298, y: 520, "letter-spacing": 3 });
+  riverText1.textContent = "楚河";
+  const riverText2 = add("text", { x: 606, y: 520, "letter-spacing": 3 });
+  riverText2.textContent = "汉界";
+
+  add("rect", { x: 32, y: 32, width: 836, height: 936, rx: 11, fill: "none", stroke: "rgba(0,0,0,.18)", "stroke-width": 1.5 });
+}
+
+/* ============================= RENDERER ============================= */
+const pieceSvg = (type, side) => {
+  const label = CONFIG.PIECE_LABELS[side][type];
+  const color = side === "red" ? "#a41e19" : "#23262c";
+  const textColor = side === "red" ? "#9c1d17" : "#22262c";
+  return `<svg viewBox="-50 -50 100 100" aria-hidden="true">
+    <circle r="45.5" fill="url(#pieceBase)" stroke="#8d5c31" stroke-width="1.4"/>
+    <circle r="45.5" fill="url(#pieceShine)"/>
+    <circle r="38" fill="none" stroke="${color}" stroke-width="1.4" opacity=".42"/>
+    <text y="6" text-anchor="middle" dominant-baseline="middle" fill="${textColor}"
+      stroke="${textColor}" stroke-width="1.2" paint-order="stroke fill"
+      style="font-family: KaiTi, STKaiti, Kaiti SC, Songti SC, SimSun, serif; font-size: 46px; font-weight: 600;">
+      ${label}
+    </text>
+  </svg>`;
+};
+
+function posCssVars(node, x, y) {
+  node.style.setProperty("--fx", x);
+  node.style.setProperty("--fy", y);
+}
+
+function logicalToView(x, y) {
+  return ui.flipped ? { x, y: 9 - y } : { x, y };
+}
+
+function viewToLogical(x, y) {
+  return ui.flipped ? { x, y: 9 - y } : { x, y };
+}
+
+function renderBoard(animateTo = null) {
+  const frag = document.createDocumentFragment();
+  for (let y = 0; y < 10; y++) {
+    for (let x = 0; x < 9; x++) {
+      const p = game.board[y][x];
+      if (!p) continue;
+      const pos = logicalToView(x, y);
+      const el = document.createElement("div");
+      el.className = "piece";
+      posCssVars(el, pos.x, pos.y);
+      el.innerHTML = pieceSvg(p.type, p.side);
+      if (animateTo && animateTo.x === x && animateTo.y === y) {
+        el.classList.add("dropping");
+      }
+      if (game.lastMove && game.lastMove.to.x === x && game.lastMove.to.y === y) {
+        el.classList.add("moved");
+      }
+      frag.appendChild(el);
+    }
+  }
+  els.pieceLayer.replaceChildren(frag);
+  renderMarks();
+}
+
+function renderMarks() {
+  const frag = document.createDocumentFragment();
+
+  if (ui.selected && game.isPlaying()) {
+    const selPos = logicalToView(ui.selected.x, ui.selected.y);
+    const ring = document.createElement("div");
+    ring.className = "spot spot-ring";
+    posCssVars(ring, selPos.x, selPos.y);
+    frag.appendChild(ring);
+
+    const moves = Rules.getLegalMoves(game.board, game.sideToMove())
+      .filter(m => m.from.x === ui.selected.x && m.from.y === ui.selected.y);
+    if (ui.hints) {
+      for (const move of moves) {
+        const pos = logicalToView(move.to.x, move.to.y);
+        const dot = document.createElement("div");
+        dot.className = "spot " + (move.captured ? "hint-capture" : "hint-dot");
+        posCssVars(dot, pos.x, pos.y);
+        frag.appendChild(dot);
+      }
+    }
+  }
+
+  els.markLayer.replaceChildren(frag);
+}
+
+function renderPanel() {
+  const side = game.isPlaying() ? game.sideToMove() : null;
+  const checked = game.isPlaying() && Rules.isInCheck(game.board, side);
+  const text = (s) => {
+    if (!side) return "等待";
+    if (side !== s) return "等待";
+    if (!game.isPlaying()) return "等待";
+    return checked ? "将军，请应将" : "请走棋";
+  };
+  els.redState.textContent = text("red");
+  els.blackState.textContent = text("black");
+  els.redPanel.classList.toggle("active", side === "red");
+  els.blackPanel.classList.toggle("active", side === "black");
+
+  const remaining = remainingMs();
+  const rVal = side === "red" ? remaining : 60 * 1000;
+  const bVal = side === "black" ? remaining : 60 * 1000;
+  updateClockDom(els.redClock, rVal, "red", side === "red");
+  updateClockDom(els.blackClock, bVal, "black", side === "black");
+}
+
+function updateClockDom(node, ms, side, active) {
+  const seconds = Math.max(0, Math.ceil(ms / 1000));
+  const val = seconds >= 60 ? Math.ceil(CONFIG.TURN_TIME_MS / 1000) : seconds;
+  node.textContent = val;
+  node.classList.remove("low", "critical");
+  if (!active) return;
+  if (seconds <= 5) node.classList.add("critical");
+  else if (seconds <= 10) node.classList.add("low");
+}
+
+function remainingMs() {
+  if (!game.isPlaying()) return CONFIG.TURN_TIME_MS;
+  return Math.max(0, game.deadline - performance.now());
+}
+
+function showToast(text, kind = "") {
+  const old = els.board.querySelector(".move-toast");
+  if (old) old.remove();
+  window.clearTimeout(ui.toastTimer);
+  const toast = document.createElement("div");
+  toast.className = "move-toast " + kind;
+  toast.textContent = text;
+  els.board.appendChild(toast);
+  ui.toastTimer = window.setTimeout(() => toast.remove(), 1100);
+}
+
+function showIllegal() {
+  showToast("此着法不合法", "warn");
+  if (ui.selected) {
+    const pos = logicalToView(ui.selected.x, ui.selected.y);
+    const piece = [...els.pieceLayer.children].find(el => Number(el.style.getPropertyValue("--fx")) === pos.x && Number(el.style.getPropertyValue("--fy")) === pos.y);
+    if (piece) {
+      piece.classList.remove("shake");
+      void piece.offsetWidth;
+      piece.classList.add("shake");
+      window.setTimeout(() => piece.classList.remove("shake"), 300);
+    }
+  }
+}
+
+/* ========================== TIMER ENGINE =========================== */
+function startTimerLoop() {
+  stopTimerLoop();
+  ui.timerId = window.setInterval(tickTimer, 200);
+  tickTimer();
+}
+function stopTimerLoop() {
+  if (ui.timerId) {
+    window.clearInterval(ui.timerId);
+    ui.timerId = 0;
+  }
+}
+function tickTimer() {
+  if (!game.isPlaying()) return;
+  const remaining = game.deadline - performance.now();
+  if (remaining <= 0) {
+    handleTimeout();
+    return;
+  }
+  renderPanel();
+}
+function handleTimeout() {
+  if (!game.isPlaying()) return;
+  const side = game.sideToMove();
+  game.timeoutSwitch();
+  showToast(SIDE_NAME[side] + "超时，轮到" + SIDE_NAME[game.sideToMove()], "timeout");
+  AudioEngine.play("timeout");
+  renderPanel();
+  renderBoard();
+  startTimerLoop();
+}
+function syncTimersFromLifecycle() {
+  if (!game.isPlaying() || !document.hidden) {
+    if (game.isPlaying() && !document.hidden) {
+      const rem = game.deadline - performance.now();
+      if (rem <= 0) handleTimeout();
+      else renderPanel();
+      startTimerLoop();
+    }
+  }
+}
+document.addEventListener("visibilitychange", syncTimersFromLifecycle);
+window.addEventListener("focus", syncTimersFromLifecycle);
+window.addEventListener("pageshow", syncTimersFromLifecycle);
+
+/* ============================ INPUT ================================= */
+function boardPointToLogical(clientX, clientY) {
+  const rect = els.board.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  const vx = (clientX - rect.left) / rect.width * 900;
+  const vy = (clientY - rect.top) / rect.height * 1000;
+  const x = Math.round((vx - 50) / 100);
+  const y = Math.round((vy - 50) / 100);
+  if (x < 0 || x > 8 || y < 0 || y > 9) return null;
+  const logical = viewToLogical(x, y);
+  const distX = Math.abs(vx - (50 + x * 100));
+  const distY = Math.abs(vy - (50 + y * 100));
+  if (Math.max(distX, distY) > 54) return null;
+  return logical;
+}
+
+function tryMove(from, to, viaDrag) {
+  if (game.isPlaying() && game.deadline - performance.now() <= 0) {
+    handleTimeout();
+    return false;
+  }
+  const result = game.applyMove(from, to);
+  if (!result) {
+    showIllegal();
+    return false;
+  }
+  const wasCapture = !!game.lastMove && game.lastMove.captured;
+  AudioEngine.play(wasCapture ? "capture" : "move");
+  renderBoard({ x: to.x, y: to.y });
+  if (result.kind === "move") {
+    const nowChecked = game.inCheckNow();
+    if (nowChecked) {
+      AudioEngine.play("check");
+      showToast("将军", "warn");
+    }
+  } else {
+    endGame(result);
+  }
+  renderPanel();
+  return true;
+}
+
+function legalTargetFromSelection(to) {
+  if (!ui.selected || !game.isPlaying()) return false;
+  return Rules.isLegalMove(game.board, game.sideToMove(), ui.selected, to);
+}
+
+els.board.addEventListener("pointerdown", (ev) => {
+  if (!game.isPlaying() || ev.button > 0) return;
+  AudioEngine.unlock();
+  if (game.deadline - performance.now() <= 0) {
+    handleTimeout();
+    return;
+  }
+  const pos = boardPointToLogical(ev.clientX, ev.clientY);
+  if (!pos) return;
+  const piece = Rules.pieceAt(game.board, pos.x, pos.y);
+  ui.pointer.active = true;
+  ui.pointer.pointerId = ev.pointerId;
+  ui.pointer.downX = ev.clientX;
+  ui.pointer.downY = ev.clientY;
+  ui.pointer.moved = false;
+  ui.pointer.dragShown = false;
+  ui.pointer.downPos = pos;
+
+  if (piece && piece.side === game.sideToMove()) {
+    ui.selected = { x: pos.x, y: pos.y };
+    renderMarks();
+  } else if (legalTargetFromSelection(pos)) {
+    /* Keep selection and wait for pointerup. */
+  } else {
+    ui.selected = null;
+    renderMarks();
+  }
+});
+
+window.addEventListener("pointermove", (ev) => {
+  if (!ui.pointer.active || ev.pointerId !== ui.pointer.pointerId) return;
+  const dx = ev.clientX - ui.pointer.downX;
+  const dy = ev.clientY - ui.pointer.downY;
+  if (Math.hypot(dx, dy) < 6) return;
+  ui.pointer.moved = true;
+  if (!ui.selected) return;
+  if (!ui.pointer.dragShown) {
+    const ghost = document.createElement("div");
+    ghost.className = "drag-ghost";
+    const p = Rules.pieceAt(game.board, ui.selected.x, ui.selected.y);
+    ghost.innerHTML = pieceSvg(p.type, p.side);
+    els.dragLayer.replaceChildren(ghost);
+    ui.pointer.dragShown = true;
+  }
+  const rect = els.board.getBoundingClientRect();
+  const ghost = els.dragLayer.firstElementChild;
+  if (ghost) {
+    ghost.style.left = ev.clientX - rect.left + "px";
+    ghost.style.top = ev.clientY - rect.top + "px";
+  }
+});
+
+function finishPointer(ev) {
+  if (!ui.pointer.active || ev.pointerId !== ui.pointer.pointerId) return;
+  const down = ui.pointer.downPos;
+  ui.pointer.active = false;
+  els.dragLayer.replaceChildren();
+  const upPos = boardPointToLogical(ev.clientX, ev.clientY);
+  const movingPiece = Rules.pieceAt(game.board, down.x, down.y);
+  const movedAway = ui.pointer.moved && (!upPos || !down || upPos.x !== down.x || upPos.y !== down.y);
+
+  if (movedAway) {
+    if (ui.selected && upPos) {
+      const from = { ...ui.selected };
+      if (legalTargetFromSelection(upPos)) {
+        tryMove(from, upPos, true);
+      } else {
+        ui.selected = null;
+        renderMarks();
+        showToast("不能走到这里", "warn");
+      }
+    }
+    return;
+  }
+
+  if (upPos && !ui.pointer.moved) {
+    const targetPiece = Rules.pieceAt(game.board, upPos.x, upPos.y);
+    if (targetPiece && targetPiece.side === game.sideToMove()) {
+      ui.selected = { x: upPos.x, y: upPos.y };
+      renderMarks();
+      return;
+    }
+    if (ui.selected && legalTargetFromSelection(upPos)) {
+      tryMove(ui.selected, upPos, false);
+      return;
+    }
+    if (!movingPiece || movingPiece.side !== game.sideToMove()) {
+      ui.selected = null;
+      renderMarks();
+      if (upPos) showToast("请先选择己方棋子", "warn");
+    }
+  }
+}
+
+window.addEventListener("pointerup", finishPointer);
+window.addEventListener("pointercancel", (ev) => {
+  if (ui.pointer.active && ev.pointerId === ui.pointer.pointerId) {
+    ui.pointer.active = false;
+    els.dragLayer.replaceChildren();
+  }
+});
+
+els.board.addEventListener("contextmenu", ev => ev.preventDefault());
+els.board.addEventListener("touchstart", ev => { if (game.isPlaying()) ev.preventDefault(); }, { passive: false });
+
+/* ========================= MEASURE / LAYOUT ========================= */
+function measureBoard() {
+  const stage = $("boardStage");
+  const h = stage.clientHeight;
+  const w = stage.clientWidth;
+  if (!h || !w) return;
+  const boardH = Math.max(120, Math.min(h, w * 10 / 9));
+  const cell = boardH / 10;
+  const board = els.board;
+  board.style.width = (boardH * .9) + "px";
+  board.style.height = boardH + "px";
+  board.style.setProperty("--cell", cell + "px");
+  board.style.setProperty("--pad", cell / 2 + "px");
+  board.style.setProperty("--piece", cell * .86 + "px");
+}
+
+let resizeObserver = null;
+function observeLayout() {
+  measureBoard();
+  if (!resizeObserver) resizeObserver = new ResizeObserver(() => measureBoard());
+  resizeObserver.observe($("boardStage"));
+  window.addEventListener("resize", measureBoard, { passive: true });
+  window.addEventListener("orientationchange", () => window.setTimeout(measureBoard, 120));
+}
+
+/* ========================== UI / FLOW =============================== */
+function showScreen(name) {
+  ui.screen = name;
+  els.menuScreen.classList.toggle("hidden", name !== "menu");
+  els.gameScreen.classList.toggle("hidden", name !== "game");
+  if (name === "game") window.setTimeout(measureBoard, 0);
+}
+
+function startNewGame() {
+  game.start();
+  ui.selected = null;
+  els.resultOverlay.classList.add("hidden");
+  els.resultOverlay.setAttribute("aria-hidden", "true");
+  showScreen("game");
+  renderBoard();
+  renderPanel();
+  startTimerLoop();
+  AudioEngine.play("move");
+}
+
+function showResult(winner, resultKind) {
+  stopTimerLoop();
+  const color = resultKind === "checkmate" || resultKind === "stalemate" ? winner : "draw";
+  const mark = resultKind === "draw" ? "和" : (winner === "red" ? "帅" : "将");
+  els.resultMark.className = "result-mark " + (color === "draw" ? "draw" : color);
+  els.resultMark.textContent = mark;
+  els.resultTitle.textContent = resultKind === "draw" ? "和棋" : SIDE_NAME[winner] + "胜";
+  els.resultReason.textContent = game.resultText;
+  els.resultOverlay.classList.remove("hidden");
+  els.resultOverlay.setAttribute("aria-hidden", "false");
+  AudioEngine.play("win");
+}
+
+function endGame(result) {
+  renderBoard();
+  renderPanel();
+  stopTimerLoop();
+  if (result.kind === "draw") showResult(null, "draw");
+  else showResult(game.winner, result.kind);
+}
+
+function closeResult() {
+  els.resultOverlay.classList.add("hidden");
+  els.resultOverlay.setAttribute("aria-hidden", "true");
+}
+
+function setSound(value) {
+  ui.sound = value;
+  AudioEngine.setEnabled(value);
+  els.btnSound.classList.toggle("on", value);
+  els.btnSound.setAttribute("aria-pressed", String(value));
+  els.btnSound.textContent = value ? "声音：开" : "声音：关";
+  els.settingSound.classList.toggle("on", value);
+  els.settingSound.setAttribute("aria-pressed", String(value));
+  try { localStorage.setItem("xq_sound", value ? "1" : "0"); } catch (e) {}
+}
+
+function setHints(value) {
+  ui.hints = value;
+  els.settingHints.classList.toggle("on", value);
+  els.settingHints.setAttribute("aria-pressed", String(value));
+  try { localStorage.setItem("xq_hints", value ? "1" : "0"); } catch (e) {}
+  renderMarks();
+}
+
+function openSettings() {
+  els.settingsOverlay.classList.remove("hidden");
+  els.settingsOverlay.setAttribute("aria-hidden", "false");
+}
+function closeSettings() {
+  els.settingsOverlay.classList.add("hidden");
+  els.settingsOverlay.setAttribute("aria-hidden", "true");
+}
+
+function setFlipped(value) {
+  ui.flipped = !!value;
+  els.gameScreen.classList.toggle("flipped", ui.flipped);
+  renderBoard();
+}
+
+function loadSettings() {
+  try {
+    const s = localStorage.getItem("xq_sound");
+    const h = localStorage.getItem("xq_hints");
+    if (s !== null) setSound(s === "1");
+    else setSound(true);
+    if (h !== null) setHints(h === "1");
+    else setHints(true);
+  } catch (e) {
+    setSound(true); setHints(true);
+  }
+}
+
+els.btnStart.addEventListener("click", () => { AudioEngine.unlock(); startNewGame(); });
+els.btnNew.addEventListener("click", () => { AudioEngine.unlock(); startNewGame(); });
+els.btnAgain.addEventListener("click", () => { AudioEngine.unlock(); startNewGame(); });
+els.btnCloseResult.addEventListener("click", closeResult);
+els.btnMenuSettings.addEventListener("click", openSettings);
+els.btnSettings.addEventListener("click", openSettings);
+els.btnSettingsClose.addEventListener("click", closeSettings);
+els.settingsOverlay.addEventListener("click", ev => { if (ev.target === els.settingsOverlay) closeSettings(); });
+els.settingSound.addEventListener("click", () => {
+  setSound(!ui.sound);
+  if (ui.sound) AudioEngine.play("move");
+});
+els.settingHints.addEventListener("click", () => setHints(!ui.hints));
+els.btnSound.addEventListener("click", () => {
+  setSound(!ui.sound);
+  if (ui.sound) AudioEngine.play("move");
+});
+els.btnFlip.addEventListener("click", () => setFlipped(!ui.flipped));
+
+/* Initialization */
+buildBoardSvg();
+els.menuPieces.innerHTML =
+  '<div class="mini-piece p-one">' + pieceSvg("k", "black") + "</div>" +
+  '<div class="mini-piece p-two">' + pieceSvg("k", "red") + "</div>";
+renderBoard();
+renderPanel();
+loadSettings();
+showScreen("menu");
+observeLayout();
+
+window.XQ = Object.freeze({
+  CONFIG, INITIAL_FEN, Rules, XiangqiGame, STATUS,
+  debug: { game, ui }
+});
+</script>
+</body>
+</html>
